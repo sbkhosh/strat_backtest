@@ -54,3 +54,9 @@ class Helper():
     def get_class_membrs(clss):
         res = inspect.getmembers(clss, lambda a:not(inspect.isroutine(a)))
         return(res)
+
+    @staticmethod
+    def check_missing_data(data):
+        print(data.isnull().sum().sort_values(ascending=False))
+               
+        

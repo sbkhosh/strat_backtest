@@ -77,8 +77,5 @@ class DataProcessor():
         except:
             raise ValueError("not supported format")
 
-    def check_missing_data(self):
-        print(self.data.isnull().sum().sort_values(ascending=False))
-               
     def save(self):
         pass
