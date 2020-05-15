@@ -97,7 +97,7 @@ class Helper():
                      
         if('=' in col_name):
             col_name = col_name.replace('=','_')
-        fig.savefig(dir_out + '/' + col_name + '.pdf')
+        fig.savefig(dir_out + '/' + col_name + '.pdf', bbox_inches="tight")
         plt.show()
 
         
