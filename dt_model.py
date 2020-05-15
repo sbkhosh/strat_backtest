@@ -1,5 +1,6 @@
 #!/usr/bin/python3
 
+import itertools
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -10,11 +11,12 @@ from sklearn import linear_model
 
 class MeanRevertStrat():
     def __init__(
-        self, 
+        self,
         data: pd.DataFrame, 
         delta: 0.01,
         z_entry_threshold: 2.0,
-        z_exit_threshold: 1.0
+        z_exit_threshold: 1.0,
+        periods: 252
     ):
         self.data = data 
         self.delta = delta
@@ -23,7 +25,8 @@ class MeanRevertStrat():
         cols = self.data.columns.values
         self.col_0 = cols[0]
         self.col_1 = cols[1]
-
+        self.periods = periods
+        
     @staticmethod
     def rolling_beta(X, y, idx, window):
         assert len(X)==len(y)
@@ -42,8 +45,52 @@ class MeanRevertStrat():
             out_dates.append(idx[iEnd])
             out_beta.append(model_ols.coef_[0][0])
 
-        return pd.DataFrame({'beta':out_beta}, index=out_dates)
-            
+        return(pd.DataFrame({'beta':out_beta},index=out_dates))
+
+    @staticmethod
+    def get_all_pairs():
+        lst_all = [ 'GC=F','SI=F','CL=F','^GSPC','^RUT','ZN=F','ZT=F','PL=F',
+                   'HG=F','DX=F','^VIX','S=F','EEM','EURUSD=X','^N100','^IXIC' ]
+        return(list(itertools.permutations(lst_all,2)))
+
+    def get_metrics(self):
+        """
+        Create the Sharpe ratio for the strategy, based on a 
+        benchmark of zero (i.e. no risk-free rate information).
+        
+        Parameters:
+        returns - A pandas Series representing period percentage returns.
+        periods - Daily (252), Hourly (252*6.5), Minutely(252*6.5*60) etc.
+
+        Calculate the largest peak-to-trough drawdown of the PnL curve
+        as well as the duration of the drawdown. Requires that the 
+        pnl_returns is a pandas Series.
+
+        Parameters:
+        pnl - A pandas Series representing period percentage returns.
+        
+        Returns:
+        drawdown, duration - Highest peak-to-trough drawdown and duration.
+
+        """
+        sharpe_ratio = np.sqrt(self.periods) * (np.mean(self.portfolio['returns'])) / np.std(self.portfolio['returns'])
+
+        hwm = [0]
+        eq_idx = self.portfolio.index
+        drawdown = pd.Series(index = eq_idx)
+        duration = pd.Series(index = eq_idx)
+    
+        for t in range(1, len(eq_idx)):
+            cur_hwm = max(hwm[t-1], self.portfolio['returns'].iloc[t])
+            hwm.append(cur_hwm)
+            drawdown[t]= hwm[t] - self.portfolio['returns'].iloc[t]
+            duration[t]= 0 if drawdown[t] == 0 else duration[t-1] + 1
+        mdd = drawdown.max()
+        mdd_duration = duration.max()
+        volatility = np.std(self.portfolio['returns'])
+        self.metrics = {'mdd(%)': mdd*100, 'mdd_duration': mdd_duration, 'sharpe_ratio': sharpe_ratio, 'volatility(%)': volatility*100 }
+
+    @Helper.timing
     def calc_slope_kf(self):
         self.pair_0 = self.data[self.col_0]
         self.pair_1 = self.data[self.col_1]
@@ -59,12 +106,13 @@ class MeanRevertStrat():
             initial_state_covariance=np.ones((2, 2)),
             transition_matrices=np.eye(2),
             observation_matrices=obs_mat,
-        transition_covariance=trans_cov
+            transition_covariance=trans_cov
         )
         self.state_means, self.state_covs = kf.filter(self.pair_1.values)
         self.slope = self.state_means[:, 0]
         self.intercept = self.state_means[:, 1]
         
+    @Helper.timing
     def draw_slope_intercept(self):
         pairs_name = self.col_0+'_'+self.col_1
 
@@ -73,10 +121,12 @@ class MeanRevertStrat():
         plt.title('delta = '+str(self.delta)+' - '+str(pairs_name))
         plt.show()
     
+    @Helper.timing
     def spread_zscore_kalman(self):
         self.data['spread'] = self.data[self.col_0] - self.slope * self.data[self.col_1]
         self.data['zscore'] = (self.data['spread'] - np.mean(self.data['spread'])) / np.std(self.data['spread'])
        
+    @Helper.timing
     def spread_zscore_ols(self,lookback=100):
         # Use the pandas Ordinary Least Squares method to fit a rolling
         # linear regression between the two closing price time series
@@ -95,6 +145,7 @@ class MeanRevertStrat():
         self.data['spread'] = self.data[self.col_0] - self.data['hedge_ratio'] * self.data[self.col_1]
         self.data['zscore'] = (self.data['spread'] - np.mean(self.data['spread'])) / np.std(self.data['spread'])
         
+    @Helper.timing
     def long_short_market_signals(self):
         """Create the entry/exit signals based on the exceeding of 
         z_enter_threshold for entering a position and falling below
@@ -136,6 +187,7 @@ class MeanRevertStrat():
             self.data['long_market'].iloc[i] = long_market
             self.data['short_market'].iloc[i] = short_market
 
+    @Helper.timing
     def portfolio_returns(self):
         """Creates a portfolio pandas DataFrame which keeps track of
         the account equity and ultimately generates an equity curve.
@@ -163,11 +215,13 @@ class MeanRevertStrat():
         self.portfolio['returns'].replace(-1.0, 0.0, inplace=True)
 
         # Calculate the full equity curve
-        self.portfolio['returns'] = (self.portfolio['returns'] + 1.0).cumprod()
+        self.portfolio['cumulative returns'] = (1.0 + self.portfolio['returns']).cumprod()
 
+    @Helper.timing
     def plot_eq_curve(self):
         pairs_name = self.col_0 +' - ' + self.col_1
         fig, ax = plt.subplots(figsize=(32,20))
-        self.portfolio['returns'].plot()
-        plt.title('Equity curve for ' + str(pairs_name))
+        self.portfolio['cumulative returns'].plot()
+        plt.title('Cumulative returns for ' + str(pairs_name))
         plt.show()
+

@@ -3,9 +3,12 @@
 import csv
 import inspect
 import matplotlib
+import matplotlib.dates as mdates
+import matplotlib.pyplot as plt
 import numpy as np
 import os
 import pandas as pd
+import ta
 import time
 import yaml
 
@@ -59,4 +62,42 @@ class Helper():
     def check_missing_data(data):
         print(data.isnull().sum().sort_values(ascending=False))
                
+    @staticmethod
+    def plot_chart(df,col_name,dir_out):
+        # Filter number of observations to plot
+        data = df
+    
+        # Create figure and set axes for subplots
+        fig = plt.figure()
+        fig.set_size_inches((20, 16))
+        ax_price = fig.add_axes((0, 0.72, 1, 0.2))
+        ax_macd = fig.add_axes((0, 0.48, 1, 0.2), sharex=ax_price)
+        ax_rsi = fig.add_axes((0, 0.24, 1, 0.2), sharex=ax_price)
+        ax_volume = fig.add_axes((0, 0, 1, 0.2), sharex=ax_price)
+    
+        # price
+        ax_price.plot(data.index, ta.trend.ema_indicator(data[col_name]), label='price ' + col_name)
+        ax_price.legend()
+   
+        # macd
+        ax_macd.plot(data.index, ta.trend.macd(data[col_name]), label='macd')
+        ax_macd.plot(data.index, ta.trend.macd_diff(data[col_name]), label='macd_hist')
+        ax_macd.plot(data.index, ta.trend.macd_signal(data[col_name]), label='macd_signal')
+        ax_macd.legend()
+    
+        # rsi - above 70% = overbought, below 30% = oversold
+        ax_rsi.set_ylabel("(%)")
+        ax_rsi.plot(data.index, ta.momentum.rsi(data[col_name]), label='rsi')
+        ax_rsi.plot(data.index, [70] * len(data.index), label="overbought")
+        ax_rsi.plot(data.index, [30] * len(data.index), label="oversold")
+        ax_rsi.legend()
+
+        ax_volume.fill_between(data.index.map(mdates.date2num), data['volume_'+col_name], 0, label='volume')
+        ax_volume.legend()
+                     
+        if('=' in col_name):
+            col_name = col_name.replace('=','_')
+        fig.savefig(dir_out + '/' + col_name + '.pdf')
+        plt.show()
+
         
