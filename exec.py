@@ -1,15 +1,10 @@
 #!/usr/bin/python3
 
-import csv
 import matplotlib
-import matplotlib.dates as mdates
-import matplotlib.pyplot as plt
 import os
 import pandas as pd 
 import warnings
-import yaml
 
-from datetime import datetime, timedelta
 from dt_help import Helper
 from dt_read import DataProcessor
 from dt_model import MeanRevertStrat
@@ -38,20 +33,20 @@ if __name__ == '__main__':
     obj_0.process()
     df = obj_0.data
 
-    Helper.plot_chart(df,obj_0.conf.get('pairs')[0],obj_0.output_directory)
+    # Helper.plot_chart(df,obj_0.conf.get('pairs')[0],obj_0.output_directory)
     
-    # mr_strat = MeanRevertStrat(
-    #     data=df,
-    #     delta=0.01,
-    #     z_entry_threshold=2.0,
-    #     z_exit_threshold=1.0,
-    #     periods=252
-    # )
+    mr_strat = MeanRevertStrat(
+        data=df,
+        delta=0.01,
+        z_entry_threshold=2.0,
+        z_exit_threshold=1.0,
+        periods=252
+    )
 
-    # mr_strat.calc_slope_kf()
-    # mr_strat.draw_slope_intercept()
-    # mr_strat.spread_zscore_kalman()
-    # mr_strat.long_short_market_signals()
-    # mr_strat.portfolio_returns()
-    # mr_strat.plot_eq_curve()
-    # mr_strat.get_metrics()
+    mr_strat.calc_slope_kf()
+    mr_strat.draw_slope_intercept()
+    mr_strat.spread_zscore_kalman()
+    mr_strat.long_short_market_signals()
+    mr_strat.portfolio_returns()
+    mr_strat.plot_eq_curve()
+    mr_strat.get_metrics()
