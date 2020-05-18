@@ -26,14 +26,13 @@ if __name__ == '__main__':
     matplotlib.rcParams['axes.titlesize'] = fontsize
     matplotlib.rcParams['text.color'] = 'k'
 
-    all_pairs = MeanRevertStrat.get_all_pairs()
+    # all_pairs = MeanRevertStrat.get_all_pairs()
+    # Helper.plot_chart(df,obj_0.conf.get('pairs')[0],obj_0.output_directory)
     
     obj_0 = DataProcessor('data_in','data_out','conf_model.yml')
     obj_0.read_prm()
     obj_0.process()
     df = obj_0.data
-
-    # Helper.plot_chart(df,obj_0.conf.get('pairs')[0],obj_0.output_directory)
     
     mr_strat = MeanRevertStrat(
         data=df,
@@ -50,3 +49,4 @@ if __name__ == '__main__':
     mr_strat.portfolio_returns()
     mr_strat.plot_eq_curve()
     mr_strat.get_metrics()
+    print(mr_strat.metrics)

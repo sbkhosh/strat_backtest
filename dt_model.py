@@ -23,8 +23,8 @@ class MeanRevertStrat():
         self.z_entry_threshold = z_entry_threshold
         self.z_exit_threshold = z_exit_threshold
         cols = self.data.columns.values
-        self.col_0 = cols[0]
-        self.col_1 = cols[1]
+        self.col_pair0 = cols[0]
+        self.col_pair1 = cols[2]
         self.periods = periods
         
     @staticmethod
@@ -73,7 +73,8 @@ class MeanRevertStrat():
         drawdown, duration - Highest peak-to-trough drawdown and duration.
 
         """
-        sharpe_ratio = np.sqrt(self.periods) * (np.mean(self.portfolio['returns'])) / np.std(self.portfolio['returns'])
+        flag = 'returns'
+        sharpe_ratio = np.sqrt(self.periods) * (np.mean(self.portfolio[flag])) / np.std(self.portfolio[flag])
 
         hwm = [0]
         eq_idx = self.portfolio.index
@@ -81,19 +82,22 @@ class MeanRevertStrat():
         duration = pd.Series(index = eq_idx)
     
         for t in range(1, len(eq_idx)):
-            cur_hwm = max(hwm[t-1], self.portfolio['returns'].iloc[t])
+            cur_hwm = max(hwm[t-1], self.portfolio[flag].iloc[t])
             hwm.append(cur_hwm)
-            drawdown[t]= hwm[t] - self.portfolio['returns'].iloc[t]
+            drawdown[t]= hwm[t] - self.portfolio[flag].iloc[t]
             duration[t]= 0 if drawdown[t] == 0 else duration[t-1] + 1
         mdd = drawdown.max()
         mdd_duration = duration.max()
-        volatility = np.std(self.portfolio['returns'])
-        self.metrics = {'mdd(%)': mdd*100, 'mdd_duration': mdd_duration, 'sharpe_ratio': sharpe_ratio, 'volatility(%)': volatility*100 }
+        volatility = np.std(self.portfolio[flag])
+        portfolio_growth = (self.portfolio['cumulative returns'].iloc[-1]/self.portfolio['cumulative returns'].iloc[0]) - 1.0
+        self.metrics = {'mdd(%)': mdd * 100.0, 'mdd_duration': mdd_duration,
+                        'sharpe_ratio': sharpe_ratio, 'volatility(%)': volatility * 100.0,
+                        'portfolio_growth(%)': portfolio_growth * 100.0}
 
     @Helper.timing
     def calc_slope_kf(self):
-        self.pair_0 = self.data[self.col_0]
-        self.pair_1 = self.data[self.col_1]
+        self.pair_0 = self.data[self.col_pair0]
+        self.pair_1 = self.data[self.col_pair1]
         trans_cov = self.delta / (1 - self.delta) * np.eye(2)
         obs_mat = np.vstack(
             [self.pair_0, np.ones(self.pair_0.shape)]
@@ -114,7 +118,7 @@ class MeanRevertStrat():
         
     @Helper.timing
     def draw_slope_intercept(self):
-        pairs_name = self.col_0+'_'+self.col_1
+        pairs_name = self.col_pair0+'_'+self.col_pair1
 
         df = pd.DataFrame(dict(slope=self.slope,intercept=self.intercept),index=self.data.index)
         df.plot(subplots=True,figsize=(32,20))
@@ -123,7 +127,7 @@ class MeanRevertStrat():
     
     @Helper.timing
     def spread_zscore_kalman(self):
-        self.data['spread'] = self.data[self.col_0] - self.slope * self.data[self.col_1]
+        self.data['spread'] = self.data[self.col_pair0] - self.slope * self.data[self.col_pair0]
         self.data['zscore'] = (self.data['spread'] - np.mean(self.data['spread'])) / np.std(self.data['spread'])
        
     @Helper.timing
@@ -131,7 +135,7 @@ class MeanRevertStrat():
         # Use the pandas Ordinary Least Squares method to fit a rolling
         # linear regression between the two closing price time series
         print("Fitting the rolling Linear Regression...")
-        rols = self.rolling_beta(self.data[self.col_0],self.data[self.col_1],self.data[self.col_1].index,lookback)
+        rols = self.rolling_beta(self.data[self.col_pair0],self.data[self.col_pair1],self.data[self.col_pair1].index,lookback)
 
         # Construct the hedge ratio and eliminate the first 
         # lookback-length empty/NaN period
@@ -142,7 +146,7 @@ class MeanRevertStrat():
 
         # Create the spread and then a z-score of the spread
         print("Creating the spread/zscore columns...")
-        self.data['spread'] = self.data[self.col_0] - self.data['hedge_ratio'] * self.data[self.col_1]
+        self.data['spread'] = self.data[self.col_pair0] - self.data['hedge_ratio'] * self.data[self.col_pair1]
         self.data['zscore'] = (self.data['spread'] - np.mean(self.data['spread'])) / np.std(self.data['spread'])
         
     @Helper.timing
@@ -194,8 +198,8 @@ class MeanRevertStrat():
         This can be used to generate drawdown and risk/reward ratios."""
     
         # Convenience variables for symbols
-        sym1 = self.col_0
-        sym2 = self.col_1
+        sym1 = self.col_pair0
+        sym2 = self.col_pair1
 
         # Construct the portfolio object with positions information
         # Note that minuses to keep track of shorts!
@@ -219,7 +223,7 @@ class MeanRevertStrat():
 
     @Helper.timing
     def plot_eq_curve(self):
-        pairs_name = self.col_0 +' - ' + self.col_1
+        pairs_name = self.col_pair0 +' - ' + self.col_pair1
         fig, ax = plt.subplots(figsize=(32,20))
         self.portfolio['cumulative returns'].plot()
         plt.title('Cumulative returns for ' + str(pairs_name))
