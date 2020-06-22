@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import os
 import pandas as pd
+import plotly.graph_objects as go
 import ta
 import time
 import yaml
@@ -61,7 +62,11 @@ class Helper():
     @staticmethod
     def check_missing_data(data):
         print(data.isnull().sum().sort_values(ascending=False))
-               
+
+    @staticmethod
+    def view_data(data):
+        print(data.head())
+
     @staticmethod
     def plot_chart(df,col_name,dir_out):
         # Filter number of observations to plot
